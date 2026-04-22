@@ -55,12 +55,11 @@ def save(df):
 
 
 # ── Market data ──────────────────────────────────────────────────────────────
-def get_live_price(symbol):
-    try:
-        hist = yf.Ticker(symbol).history(period="1d")
-        return float(hist["Close"].iloc[-1]) if not hist.empty else None
-    except Exception:
-        return None
+# Try fetching but don't block adding
+live_price = get_live_price(symbol)
+
+if live_price is None:
+    print(f"Warning: Could not fetch live price for {symbol}")
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -81,9 +80,22 @@ def add():
     if not symbol or qty <= 0 or price <= 0:
         return jsonify({"status": "error", "message": "Invalid input."}), 400
 
-    if get_live_price(symbol) is None:
-        return jsonify({"status": "error", "message": f"Ticker '{symbol}' not found."}), 404
+    def get_live_price(symbol):
+    import yfinance as yf
 
+    try:
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(period="5d")  # 🔥 better than 1d
+
+        if data.empty:
+            return None
+
+        return float(data["Close"].iloc[-1])
+
+    except Exception as e:
+        print("Error fetching price:", e)
+        return None
+    
     df = load()
     if symbol in df["symbol"].values:
         idx   = df[df["symbol"] == symbol].index[0]
