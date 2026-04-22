@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FolioSense — AI Portfolio Analyzer</title>
+
+  <!-- Favicon from logo.png -->
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='ws.png') }}"/>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"/>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     HEADER
+     ════════════════════════════════════════════════════════════ -->
+<header class="header">
+
+  <!-- Full-width banner -->
+  <div class="banner-wrap">
+    <img
+      src="{{ url_for('static', filename='banner.png') }}"
+      alt="FolioSense — Your portfolio evolved, and understood"
+    />
+  </div>
+
+  <!-- Sticky navbar -->
+  <nav class="nav">
+    <div class="logo-section">
+      <img
+        src="{{ url_for('static', filename='logo.png') }}"
+        alt="FolioSense logo"
+      />
+      <span class="brand-name">FolioSense</span>
+    </div>
+
+    <ul class="nav-links">
+      <li><a href="#portfolio-section">Portfolio</a></li>
+      <li><a href="#insights-section">Insights</a></li>
+      <li><a href="#chart-section">Charts</a></li>
+    </ul>
+  </nav>
+
+</header>
+
+<!-- ════════════════════════════════════════════════════════════
+     PAGE BODY
+     ════════════════════════════════════════════════════════════ -->
+<main class="page">
+
+  <!-- ── 1. ADD STOCK ───────────────────────────────────────── -->
+  <section class="section" id="add-section">
+
+    <div class="section-title">
+      <span class="dot"></span>Add Position
+    </div>
+    <p class="section-sub">Enter a ticker to add or update a holding. Duplicates are merged using weighted-average cost.</p>
+
+    <div class="card">
+      <div class="form-grid">
+
+        <div class="field">
+          <label for="f-symbol">Ticker Symbol</label>
+          <input
+            id="f-symbol"
+            type="text"
+            placeholder="AAPL, RELIANCE.NS…"
+            maxlength="12"
+            autocomplete="off"
+            autocapitalize="characters"
+            style="text-transform:uppercase"
+          />
+        </div>
+
+        <div class="field">
+          <label for="f-qty">Quantity</label>
+          <input
+            id="f-qty"
+            type="number"
+            placeholder="10"
+            min="0.0001"
+            step="any"
+          />
+        </div>
+
+        <div class="field">
+          <label for="f-price">Buy Price (USD)</label>
+          <input
+            id="f-price"
+            type="number"
+            placeholder="150.00"
+            min="0.0001"
+            step="any"
+          />
+        </div>
+
+        <button class="btn-gold" id="btn-add" onclick="addStock()">
+          Add Stock
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. PORTFOLIO ───────────────────────────────────────── -->
+  <section class="section" id="portfolio-section">
+
+    <div class="section-title">
+      <span class="dot"></span>Portfolio Holdings
+    </div>
+    <p class="section-sub">Live prices update on every page load. Click any card to view its chart.</p>
+
+    <div class="portfolio-grid" id="portfolio-grid">
+      <div class="loading-inline">
+        <span class="spinner"></span>Fetching live prices…
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ── 3. CHART ───────────────────────────────────────────── -->
+  <section class="section" id="chart-section">
+
+    <div class="section-title">
+      <span class="dot"></span>Price Chart
+    </div>
+    <p class="section-sub">6-month chart with time filters. Gold line = uptrend · Red line = downtrend.</p>
+
+    <div class="card">
+
+      <!-- Header row: name + price / search input -->
+      <div class="chart-header">
+        <div class="chart-meta">
+          <div class="chart-sym-name" id="chart-sym-name">—</div>
+          <div class="chart-price-wrap">
+            <span class="chart-price" id="chart-price">—</span>
+            <span class="chart-change" id="chart-change"></span>
+          </div>
+        </div>
+
+        <div class="chart-search">
+          <input
+            id="chart-sym"
+            type="text"
+            placeholder="Symbol (AAPL)"
+            maxlength="12"
+            autocomplete="off"
+            autocapitalize="characters"
+            style="text-transform:uppercase"
+          />
+          <button class="btn-gold" id="btn-chart-load" onclick="fetchChart()">
+            Load
+          </button>
+        </div>
+      </div>
+
+      <!-- Time filters — exactly like Groww -->
+      <div class="time-filters">
+        <button class="time-btn"        data-period="1D">1D</button>
+        <button class="time-btn"        data-period="1W">1W</button>
+        <button class="time-btn"        data-period="1M">1M</button>
+        <button class="time-btn active" data-period="6M">6M</button>
+        <button class="time-btn"        data-period="1Y">1Y</button>
+        <button class="time-btn"        data-period="5Y">5Y</button>
+      </div>
+
+      <!-- Canvas + loader -->
+      <div class="chart-canvas-wrap">
+        <div class="chart-loader hidden" id="chart-loader">
+          <span class="spinner"></span>Loading chart data…
+        </div>
+        <canvas id="stockChart"></canvas>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 4. INSIGHTS ───────────────────────────────────────── -->
+  <section class="section" id="insights-section">
+
+    <div class="section-title">
+      <span class="dot"></span>AI Insights
+    </div>
+    <p class="section-sub">Analysis uses live portfolio data. News &amp; Predict require a specific symbol.</p>
+
+    <!-- Controls -->
+    <div class="insights-controls">
+
+      <div class="field">
+        <label for="insight-sym">Symbol (for News &amp; Predict)</label>
+        <input
+          id="insight-sym"
+          type="text"
+          placeholder="e.g. TSLA"
+          maxlength="12"
+          autocomplete="off"
+          autocapitalize="characters"
+          style="text-transform:uppercase"
+        />
+      </div>
+
+      <button class="btn-outline" id="btn-analysis" onclick="runAnalysis()">
+        Analysis
+      </button>
+      <button class="btn-outline" id="btn-news"     onclick="fetchNews()">
+        News
+      </button>
+      <button class="btn-outline" id="btn-predict"  onclick="fetchPredict()">
+        Predict
+      </button>
+
+    </div>
+
+    <!-- Output panel — content swapped by each action -->
+    <div class="output-panel" id="insight-output">
+      <p class="output-placeholder">
+        Select an action — <em>Analysis</em> shows portfolio-wide stats,
+        <em>News</em> returns VADER-scored headlines, and
+        <em>Predict</em> runs a moving-average signal on any ticker.
+      </p>
+    </div>
+
+  </section>
+
+</main><!-- /page -->
+
+<!-- ════════════════════════════════════════════════════════════
+     FOOTER
+     ════════════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <p>Built by <strong>P N Sri Harsha</strong> | AI &amp; ML Engineer</p>
+  <p>FolioSense &copy; 2026</p>
+</footer>
+
+<!-- Toast container -->
+<div id="toasts" aria-live="polite"></div>
+
+<!-- JavaScript -->
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>
