@@ -10,8 +10,8 @@ Routes:
   GET  /predict/<symbol> — SMA trend signal
   GET  /chart/<symbol>   — OHLCV close prices
 
-Run:  python app.py
-Deps: pip install flask pandas yfinance nltk
+Run locally:  python app.py
+Deploy:       gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
 """
 
 import os
@@ -19,17 +19,30 @@ import pandas as pd
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify
 
+# ── NLTK — download vader_lexicon to a writable path on Render ──────────────
 import nltk
-nltk.download("vader_lexicon", quiet=True)
+
+# On Render the home directory is writable; point nltk there explicitly
+NLTK_DIR = os.path.join(os.path.expanduser("~"), "nltk_data")
+os.makedirs(NLTK_DIR, exist_ok=True)
+nltk.data.path.insert(0, NLTK_DIR)
+nltk.download("vader_lexicon", download_dir=NLTK_DIR, quiet=True)
+
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
+# ── App setup ────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 sia = SentimentIntensityAnalyzer()
-CSV = "portfolio.csv"
+
+# FIX 1: Use an ABSOLUTE path so the CSV is always found regardless of
+#         which directory gunicorn is invoked from on Render.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV      = os.path.join(BASE_DIR, "portfolio.csv")
 
 
-# ── CSV helpers ────────────────────────────────────────────────
+# ── CSV helpers ──────────────────────────────────────────────────────────────
 def load():
+    """Load portfolio from CSV; create empty file if it doesn't exist."""
     if os.path.exists(CSV):
         return pd.read_csv(CSV)
     df = pd.DataFrame(columns=["symbol", "qty", "price"])
@@ -41,7 +54,7 @@ def save(df):
     df.to_csv(CSV, index=False)
 
 
-# ── Market data ────────────────────────────────────────────────
+# ── Market data ──────────────────────────────────────────────────────────────
 def get_live_price(symbol):
     try:
         hist = yf.Ticker(symbol).history(period="1d")
@@ -50,7 +63,7 @@ def get_live_price(symbol):
         return None
 
 
-# ── Routes ─────────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def home():
@@ -152,7 +165,7 @@ def analysis():
     })
 
 
-# Headline templates — replace with a real news API for production
+# Headline templates — swap for a real News API in production
 HEADLINES = [
     "{s} beats earnings estimates; shares rally in after-hours trading",
     "{s} announces strategic expansion — analysts raise price targets",
@@ -166,8 +179,8 @@ def news(symbol):
     symbol   = symbol.upper().strip()
     articles = []
     for tmpl in HEADLINES:
-        h        = tmpl.replace("{s}", symbol)
-        score    = sia.polarity_scores(h)["compound"]
+        h         = tmpl.replace("{s}", symbol)
+        score     = sia.polarity_scores(h)["compound"]
         sentiment = "Positive" if score >= 0.05 else ("Negative" if score <= -0.05 else "Neutral")
         articles.append({"headline": h, "sentiment": sentiment, "score": round(score, 3)})
     avg     = sum(a["score"] for a in articles) / len(articles)
@@ -177,7 +190,7 @@ def news(symbol):
 
 @app.route("/predict/<symbol>")
 def predict(symbol):
-    """SMA-20 vs SMA-50: crossover determines Uptrend / Downtrend."""
+    """SMA-20 vs SMA-50 crossover → Uptrend / Downtrend."""
     symbol = symbol.upper().strip()
     try:
         hist = yf.Ticker(symbol).history(period="6mo")
@@ -232,5 +245,10 @@ def chart(symbol):
     })
 
 
+# ── Entry point ──────────────────────────────────────────────────────────────
+# FIX 2: Use the PORT environment variable that Render injects.
+#         Gunicorn overrides this anyway, but it ensures `python app.py`
+#         also works correctly on any platform.
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
