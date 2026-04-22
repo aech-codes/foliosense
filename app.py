@@ -57,7 +57,7 @@ def save(df):
 # ── Market data ──────────────────────────────────────────────────────────────
 def get_live_price(symbol):
     try:
-        hist = yf.Ticker(symbol).history(period="1d")
+        hist = yf.Ticker(symbol).history(period="5d")
         return float(hist["Close"].iloc[-1]) if not hist.empty else None
     except Exception:
         return None
