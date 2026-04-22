@@ -249,6 +249,8 @@ def chart(symbol):
 # FIX 2: Use the PORT environment variable that Render injects.
 #         Gunicorn overrides this anyway, but it ensures `python app.py`
 #         also works correctly on any platform.
+import os
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
