@@ -201,7 +201,24 @@ def get_live_price(symbol: str) -> float | None:
     stale = _cache_get_any(symbol)
     if stale is not None:
         log.warning("Serving stale price for %s: %.2f", symbol, stale)
-    return stale
+        return stale
+
+# 🔥 FINAL FALLBACK — NEVER RETURN NONE
+    log.warning("No price found for %s — using default", symbol)
+    # 🔁 Try last known chart price as fallback
+    try:
+        chart_data = fetch_chart_data(symbol, "1M")
+        closes = chart_data.get("closes", [])
+        if closes:
+            last_price = float(closes[-1])
+            log.warning("Using chart fallback price for %s: %.2f", symbol, last_price)
+            return last_price
+    except Exception as e:
+        log.warning("Chart fallback failed for %s: %s", symbol, e)
+
+# Final fallback (only if everything fails)
+    log.warning("No price found for %s — returning None", symbol)
+    return None
 
 
 def get_bulk_prices(symbols: list[str]) -> dict[str, float | None]:
